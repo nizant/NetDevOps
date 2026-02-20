@@ -1,0 +1,11 @@
+[junos_switches]
+# switch01 ansible_host=192.168.1.10
+# switch02 ansible_host=192.168.1.11
+# switch03 ansible_host=192.168.1.12
+
+[junos_switches:vars]
+ansible_network_os=junipernetworks.junos.junos
+ansible_connection=ansible.netcommon.netconf
+ansible_user=ansible
+# ansible_password=changeme
+# ansible_ssh_private_key_file=~/.ssh/id_rsa

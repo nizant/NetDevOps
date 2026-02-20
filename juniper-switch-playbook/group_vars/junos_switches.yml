@@ -1,0 +1,160 @@
+---
+# ══════════════════════════════════════════════
+# Juniper Switch Configuration Variables
+# ══════════════════════════════════════════════
+
+# ── System ────────────────────────────────────
+domain_name: example.com
+name_servers:
+  - 8.8.8.8
+  - 8.8.4.4
+
+ntp_servers:
+  - address: 10.0.0.1
+    prefer: true
+  - address: 10.0.0.2
+    prefer: false
+
+timezone: UTC
+
+syslog_servers:
+  - host: 10.0.0.50
+    facility: any
+    severity: warning
+  - host: 10.0.0.51
+    facility: any
+    severity: error
+
+syslog_files:
+  - name: messages
+    facility: any
+    severity: notice
+  - name: interactive-commands
+    facility: interactive-commands
+    severity: any
+
+# ── Login Banner ──────────────────────────────
+banner_motd: |
+  ****************************************************************
+  *  AUTHORIZED ACCESS ONLY                                      *
+  *  This system is the property of {{ domain_name }}             *
+  *  Unauthorized access is prohibited and will be prosecuted.    *
+  *  All sessions are logged and monitored.                       *
+  ****************************************************************
+
+# ── SNMP ──────────────────────────────────────
+snmp_location: "Data Center - Rack A1"
+snmp_contact: "noc@{{ domain_name }}"
+snmp_communities:
+  - name: public_ro
+    authorization: read-only
+  - name: private_rw
+    authorization: read-write
+
+# ── Local Users ───────────────────────────────
+local_users:
+  - name: admin
+    full_name: "Network Admin"
+    class: super-user
+    # password hash generated with: openssl passwd -6 'YourPassword'
+    password: "$6$rounds=656000$salt$hashedpassword"
+  - name: ansible
+    full_name: "Ansible Service Account"
+    class: super-user
+    password: "$6$rounds=656000$salt$hashedpassword"
+    ssh_key: "ssh-rsa AAAA... ansible@control-node"
+  - name: readonly
+    full_name: "Read-Only Operator"
+    class: read-only
+    password: "$6$rounds=656000$salt$hashedpassword"
+
+# ── VLANs ─────────────────────────────────────
+vlans:
+  - name: MGMT
+    vlan_id: 10
+    description: "Management VLAN"
+    l3_interface: true
+    ipv4_address: "10.10.10.1/24"
+  - name: USERS
+    vlan_id: 20
+    description: "User Workstations"
+    l3_interface: true
+    ipv4_address: "10.10.20.1/24"
+  - name: SERVERS
+    vlan_id: 30
+    description: "Server VLAN"
+    l3_interface: true
+    ipv4_address: "10.10.30.1/24"
+  - name: VOICE
+    vlan_id: 40
+    description: "VoIP VLAN"
+    l3_interface: false
+  - name: NATIVE
+    vlan_id: 999
+    description: "Native VLAN"
+    l3_interface: false
+
+# ── Access Interfaces ─────────────────────────
+access_interfaces:
+  - name: ge-0/0/0
+    description: "User PC - Desk 101"
+    vlan: USERS
+    enabled: true
+  - name: ge-0/0/1
+    description: "User PC - Desk 102"
+    vlan: USERS
+    enabled: true
+  - name: ge-0/0/2
+    description: "IP Phone - Desk 101"
+    vlan: VOICE
+    enabled: true
+  - name: ge-0/0/3
+    description: "Server NIC1"
+    vlan: SERVERS
+    enabled: true
+
+# ── Trunk Interfaces ─────────────────────────
+trunk_interfaces:
+  - name: ge-0/0/46
+    description: "Uplink to Core Switch 1"
+    allowed_vlans:
+      - MGMT
+      - USERS
+      - SERVERS
+      - VOICE
+    native_vlan: NATIVE
+    enabled: true
+  - name: ge-0/0/47
+    description: "Uplink to Core Switch 2"
+    allowed_vlans:
+      - MGMT
+      - USERS
+      - SERVERS
+      - VOICE
+    native_vlan: NATIVE
+    enabled: true
+
+# ── Static Routes ─────────────────────────────
+static_routes:
+  - prefix: 0.0.0.0/0
+    next_hop: 10.10.10.254
+    description: "Default gateway"
+
+# ── OSPF (set enable_ospf: true to configure) ─
+enable_ospf: false
+ospf_router_id: "10.10.10.1"
+ospf_area: "0.0.0.0"
+ospf_interfaces:
+  - name: irb.10
+    passive: true
+  - name: irb.20
+    passive: true
+  - name: irb.30
+    passive: true
+  - name: ge-0/0/46.0
+    passive: false
+  - name: ge-0/0/47.0
+    passive: false
+
+# ── Backup ────────────────────────────────────
+backup_dir: ./backups

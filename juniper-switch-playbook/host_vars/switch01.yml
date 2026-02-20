@@ -1,0 +1,37 @@
+---
+# ══════════════════════════════════════════════
+# Host-Specific Overrides for switch01
+# ══════════════════════════════════════════════
+# Uncomment and modify the variables below to
+# override the group defaults for this host.
+
+# ansible_host: 192.168.1.10
+# hostname: switch01
+
+# snmp_location: "Data Center - Rack B3"
+
+# Override L3 addresses per-switch:
+# vlans:
+#   - name: MGMT
+#     vlan_id: 10
+#     description: "Management VLAN"
+#     l3_interface: true
+#     ipv4_address: "10.10.10.2/24"
+#   - name: USERS
+#     vlan_id: 20
+#     description: "User Workstations"
+#     l3_interface: true
+#     ipv4_address: "10.10.20.2/24"
+#   - name: SERVERS
+#     vlan_id: 30
+#     description: "Server VLAN"
+#     l3_interface: true
+#     ipv4_address: "10.10.30.2/24"
+#   - name: VOICE
+#     vlan_id: 40
+#     description: "VoIP VLAN"
+#     l3_interface: false
+#   - name: NATIVE
+#     vlan_id: 999
+#     description: "Native VLAN"
+#     l3_interface: false

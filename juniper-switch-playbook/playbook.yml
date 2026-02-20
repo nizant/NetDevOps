@@ -1,0 +1,272 @@
+---
+- name: Configure Juniper Switches
+  hosts: junos_switches
+  gather_facts: false
+
+  tasks:
+    # ──────────────────────────────────────────────
+    # Backup Running Configuration
+    # ──────────────────────────────────────────────
+    - name: Create backup directory
+      delegate_to: localhost
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0755"
+      run_once: true
+
+    - name: Get current date for backup filename
+      delegate_to: localhost
+      set_fact:
+        backup_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+
+    - name: Backup current configuration
+      junipernetworks.junos.junos_config:
+        backup: true
+        backup_options:
+          dir_path: "{{ backup_dir }}"
+          filename: "{{ inventory_hostname }}_{{ backup_date }}.conf"
+
+    # ──────────────────────────────────────────────
+    # System Basics
+    # ──────────────────────────────────────────────
+    - name: Set hostname
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system host-name {{ inventory_hostname }}"
+          - "set system domain-name {{ domain_name }}"
+      when: domain_name is defined
+
+    - name: Configure DNS name servers
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system name-server {{ item }}"
+      loop: "{{ name_servers }}"
+
+    - name: Set timezone
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system time-zone {{ timezone }}"
+
+    # ──────────────────────────────────────────────
+    # NTP
+    # ──────────────────────────────────────────────
+    - name: Configure NTP servers
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system ntp server {{ item.address }}{{ ' prefer' if item.prefer | default(false) else '' }}"
+      loop: "{{ ntp_servers }}"
+
+    # ──────────────────────────────────────────────
+    # Syslog
+    # ──────────────────────────────────────────────
+    - name: Configure remote syslog servers
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system syslog host {{ item.host }} {{ item.facility }} {{ item.severity }}"
+      loop: "{{ syslog_servers }}"
+      when: syslog_servers is defined
+
+    - name: Configure syslog files
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system syslog file {{ item.name }} {{ item.facility }} {{ item.severity }}"
+      loop: "{{ syslog_files }}"
+      when: syslog_files is defined
+
+    # ──────────────────────────────────────────────
+    # Login Banner
+    # ──────────────────────────────────────────────
+    - name: Configure login banner
+      junipernetworks.junos.junos_banner:
+        banner: motd
+        text: "{{ banner_motd }}"
+        state: present
+
+    # ──────────────────────────────────────────────
+    # SNMP
+    # ──────────────────────────────────────────────
+    - name: Configure SNMP location and contact
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set snmp location \"{{ snmp_location }}\""
+          - "set snmp contact \"{{ snmp_contact }}\""
+
+    - name: Configure SNMP communities
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set snmp community {{ item.name }} authorization {{ item.authorization }}"
+      loop: "{{ snmp_communities }}"
+
+    # ──────────────────────────────────────────────
+    # Local Users
+    # ──────────────────────────────────────────────
+    - name: Configure local user accounts
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system login user {{ item.name }} full-name \"{{ item.full_name }}\""
+          - "set system login user {{ item.name }} class {{ item.class }}"
+          - "set system login user {{ item.name }} authentication encrypted-password \"{{ item.password }}\""
+      loop: "{{ local_users }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Configure SSH keys for users
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set system login user {{ item.name }} authentication ssh-rsa \"{{ item.ssh_key }}\""
+      loop: "{{ local_users | selectattr('ssh_key', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ──────────────────────────────────────────────
+    # NETCONF & SSH Services
+    # ──────────────────────────────────────────────
+    - name: Ensure NETCONF and SSH services are enabled
+      junipernetworks.junos.junos_config:
+        lines:
+          - set system services ssh
+          - set system services netconf ssh
+
+    # ──────────────────────────────────────────────
+    # VLANs
+    # ──────────────────────────────────────────────
+    - name: Configure VLANs
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set vlans {{ item.name }} vlan-id {{ item.vlan_id }}"
+          - "set vlans {{ item.name }} description \"{{ item.description }}\""
+      loop: "{{ vlans }}"
+      loop_control:
+        label: "VLAN {{ item.vlan_id }} - {{ item.name }}"
+
+    - name: Associate L3 IRB interfaces with VLANs
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set vlans {{ item.name }} l3-interface irb.{{ item.vlan_id }}"
+      loop: "{{ vlans | selectattr('l3_interface', 'equalto', true) | list }}"
+      loop_control:
+        label: "{{ item.name }} -> irb.{{ item.vlan_id }}"
+
+    # ──────────────────────────────────────────────
+    # IRB (L3 VLAN) Interfaces
+    # ──────────────────────────────────────────────
+    - name: Configure IRB interfaces with IP addresses
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set interfaces irb unit {{ item.vlan_id }} family inet address {{ item.ipv4_address }}"
+          - "set interfaces irb unit {{ item.vlan_id }} description \"{{ item.description }} - Gateway\""
+      loop: "{{ vlans | selectattr('l3_interface', 'equalto', true) | list }}"
+      loop_control:
+        label: "irb.{{ item.vlan_id }} - {{ item.ipv4_address }}"
+
+    # ──────────────────────────────────────────────
+    # Access Interfaces
+    # ──────────────────────────────────────────────
+    - name: Configure access interfaces
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set interfaces {{ item.name }} description \"{{ item.description }}\""
+          - "set interfaces {{ item.name }} unit 0 family ethernet-switching interface-mode access"
+          - "set interfaces {{ item.name }} unit 0 family ethernet-switching vlan members {{ item.vlan }}"
+      loop: "{{ access_interfaces }}"
+      loop_control:
+        label: "{{ item.name }} -> {{ item.vlan }}"
+      when: access_interfaces is defined
+
+    - name: Disable access interfaces marked as disabled
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set interfaces {{ item.name }} disable"
+      loop: "{{ access_interfaces | selectattr('enabled', 'defined') | rejectattr('enabled') | list }}"
+      loop_control:
+        label: "{{ item.name }} (disabled)"
+      when: access_interfaces is defined
+
+    # ──────────────────────────────────────────────
+    # Trunk Interfaces
+    # ──────────────────────────────────────────────
+    - name: Configure trunk interfaces
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set interfaces {{ item.name }} description \"{{ item.description }}\""
+          - "set interfaces {{ item.name }} unit 0 family ethernet-switching interface-mode trunk"
+          - "set interfaces {{ item.name }} unit 0 family ethernet-switching vlan members [ {{ item.allowed_vlans | join(' ') }} ]"
+          - "set interfaces {{ item.name }} native-vlan-id {{ (vlans | selectattr('name', 'equalto', item.native_vlan) | first).vlan_id }}"
+      loop: "{{ trunk_interfaces }}"
+      loop_control:
+        label: "{{ item.name }} (trunk)"
+      when: trunk_interfaces is defined
+
+    # ──────────────────────────────────────────────
+    # Static Routes
+    # ──────────────────────────────────────────────
+    - name: Configure static routes
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set routing-options static route {{ item.prefix }} next-hop {{ item.next_hop }}"
+      loop: "{{ static_routes }}"
+      loop_control:
+        label: "{{ item.prefix }} -> {{ item.next_hop }}"
+      when: static_routes is defined
+
+    # ──────────────────────────────────────────────
+    # OSPF (Optional)
+    # ──────────────────────────────────────────────
+    - name: Configure OSPF router ID
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set routing-options router-id {{ ospf_router_id }}"
+      when: enable_ospf | default(false)
+
+    - name: Configure OSPF interfaces
+      junipernetworks.junos.junos_config:
+        lines:
+          - "set protocols ospf area {{ ospf_area }} interface {{ item.name }}{{ ' passive' if item.passive | default(false) else '' }}"
+      loop: "{{ ospf_interfaces }}"
+      loop_control:
+        label: "{{ item.name }}{{ ' (passive)' if item.passive | default(false) else '' }}"
+      when: enable_ospf | default(false)
+
+    # ──────────────────────────────────────────────
+    # Security Hardening
+    # ──────────────────────────────────────────────
+    - name: Apply basic security hardening
+      junipernetworks.junos.junos_config:
+        lines:
+          - set system services ssh root-login deny
+          - set system services ssh protocol-version v2
+          - set system services ssh max-sessions-per-connection 5
+          - set system login retry-options tries-before-disconnect 3
+          - set system login retry-options backoff-threshold 1
+          - set system login retry-options backoff-factor 6
+          - set system ports console log-out-on-disconnect
+          - set system no-redirects
+
+    # ──────────────────────────────────────────────
+    # Final Verification Commit
+    # ──────────────────────────────────────────────
+    - name: Final commit with comment
+      junipernetworks.junos.junos_config:
+        comment: "Ansible managed configuration - {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+
+    # ──────────────────────────────────────────────
+    # Verification
+    # ──────────────────────────────────────────────
+    - name: Gather switch facts
+      junipernetworks.junos.junos_facts:
+        gather_subset:
+          - default
+      register: switch_facts
+
+    - name: Display configuration summary
+      debug:
+        msg:
+          - "=========================================="
+          - " {{ inventory_hostname }} configured!"
+          - "=========================================="
+          - "Hostname : {{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }}"
+          - "Model    : {{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }}"
+          - "Serial   : {{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }}"
+          - "Version  : {{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }}"
+          - "=========================================="

@@ -1,0 +1,90 @@
+---
+# Python virtual environment path
+venv_path: "{{ ansible_env.HOME }}/network-automation/venv"
+
+# Project directory structure
+project_base: "{{ ansible_env.HOME }}/network-automation"
+project_dirs:
+  - "{{ project_base }}/playbooks"
+  - "{{ project_base }}/inventories"
+  - "{{ project_base }}/roles"
+  - "{{ project_base }}/templates"
+  - "{{ project_base }}/group_vars"
+  - "{{ project_base }}/host_vars"
+  - "{{ project_base }}/backups"
+  - "{{ project_base }}/scripts"
+
+# System packages to install
+system_packages:
+  - git
+  - vim
+  - curl
+  - wget
+  - tree
+  - jq
+  - openssh-client
+  - sshpass
+  - snmp
+  - snmp-mibs-downloader
+  - libsnmp-dev
+  - iputils-ping
+  - traceroute
+  - nmap
+  - telnet
+  - tftpd-hpa
+  - python3
+  - python3-pip
+  - python3-venv
+  - python3-dev
+  - build-essential
+  - libffi-dev
+  - libssl-dev
+
+# Python networking libraries
+python_packages:
+  - netmiko
+  - napalm
+  - nornir
+  - nornir_netmiko
+  - nornir_napalm
+  - nornir_utils
+  - paramiko
+  - textfsm
+  - ntc-templates
+  - pysnmp
+  - jinja2
+  - pyyaml
+  - xmltodict
+  - rich
+  - scrapli
+  - genie
+  - pyats
+
+# Ansible Galaxy collections for network devices
+ansible_collections:
+  - cisco.ios
+  - cisco.iosxr
+  - cisco.nxos
+  - cisco.asa
+  - arista.eos
+  - junipernetworks.junos
+  - ansible.netcommon
+  - ansible.utils
+
+# SSH config for network devices
+ssh_config_entries: |
+  Host *
+      ServerAliveInterval 60
+      ServerAliveCountMax 3
+
+  # Network devices — adjust the Host pattern to match your environment
+  Host 192.168.* 10.* 172.16.* 172.17.* 172.18.* 172.19.* 172.2* 172.30.* 172.31.*
+      StrictHostKeyChecking no
+      UserKnownHostsFile /dev/null
+      KexAlgorithms +diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+      HostKeyAlgorithms +ssh-rsa
+      Ciphers +aes128-cbc,aes256-cbc,3des-cbc
+
+# Git config (set your own values)
+git_user_name: "Network Admin"
+git_user_email: "admin@example.com"
