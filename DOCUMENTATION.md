@@ -1,6 +1,6 @@
 # Network Automation Toolkit — Documentation
 
-> **Authors:** Our Network Engineering Team  
+> **Authors:** Nishant Shah (Network Engineering Team)  
 > **Platform:** Windows 11 + WSL 2 (Ubuntu 24.04)  
 > **Last Updated:** 2025
 
